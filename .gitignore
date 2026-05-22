@@ -1,0 +1,23 @@
+# LTspice simulation outputs — ignore at all directory levels
+# Simulation result files
+*.log
+*.raw
+*.raw.*
+*.op.raw
+*.fft
+*.ft0
+*.plt
+*.out
+
+# LTspice schematic backups/temp
+*.asc~
+
+# Generic backup/temp files
+*~
+*.bak
+*.tmp
+*.swp
+
+# OS/editor junk
+.DS_Store
+Thumbs.db
