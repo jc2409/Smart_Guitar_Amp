@@ -8,6 +8,7 @@
 *.ft0
 *.plt
 *.out
+*.net
 
 # LTspice schematic backups/temp
 *.asc~
