@@ -40,33 +40,28 @@ The circuit consists of three primary, AC-coupled stages:
 ---
 
 ## 2. Embedded Firmware & DSP
-The firmware acts as the execution engine for the smart amplifier. It handles continuous data acquisition, applies mathematical transformations to the audio array, actuates the analog hardware, and maintains communication with the software backend.
+The firmware acts as the execution engine for the smart amplifier. It is strictly optimized to maintain an overarching **"Glass-to-Glass" latency of under 10 milliseconds**, ensuring the amplifier feels instantaneous and responsive to the player. 
 
-### Data Acquisition (ADC)
-* **Interrupt-Driven Sampling:** The ADC is triggered by a hardware timer to guarantee a rigid, deterministic sample rate, rather than relying on blocking software loops.
-* **Buffering:** Incoming samples are streamed directly into double-buffered arrays (or via DMA where supported) to allow the CPU to process one block of audio while the next block is actively recording.
+### Data Acquisition & Output (ADC/DAC)
+* **Interrupt-Driven ADC:** Triggered by a hardware timer to guarantee a rigid 10 kHz sample rate. This is explicitly paired with the analog front-end's 4.8 kHz hardware low-pass filter to respect the 5 kHz Nyquist limit, ensuring zero digital aliasing.
+* **Audio Output Stage:** Following DSP, the finalized digital audio array is pushed out via a high-speed Digital-to-Analog Converter (DAC) or filtered high-frequency PWM to drive the physical speaker/headphone amplifier.
+* **Buffering:** Incoming and outgoing samples are streamed via double-buffered arrays (or DMA) to allow the CPU to crunch DSP mathematics without dropping audio frames.
 
 ### Signal Processing Pipeline (DSP)
 Once digitized, the audio array passes through an interrupt-driven pipeline to achieve distinct digital effects:
-* **Non-Linear Transformations (Overdrive/Fuzz):**
-  * **Hard/Soft Clipping:** Implements strict threshold logic to truncate waveforms, generating odd-order harmonics. Soft clipping utilizes wave-shaping algorithms (hyperbolic tangent approximations or polynomial mapping) to simulate tube compression.
-* **Time-Domain Processing (Delay/Chorus):**
-  * **Circular Ring Buffers:** Stores audio samples in a pre-allocated memory array. 
-  * **Fractional Delay & LFOs:** Modulates the read-pointer of the ring buffer using Low Frequency Oscillators. Linear interpolation is applied between samples to prevent pitch artifacts when reading at fractional indices.
-* **Frequency-Domain Processing (EQ):**
-  * **Biquad Filters:** Implements cascaded Infinite Impulse Response (IIR) filters. The LLM dictates the coefficients (Q-factor, center frequency, and gain) to create parametric EQ bands.
+* **Non-Linear Transformations (Overdrive/Fuzz):** * **Hard/Soft Clipping:** Implements strict threshold logic to truncate waveforms, generating odd-order harmonics. Soft clipping utilizes wave-shaping algorithms (hyperbolic tangent approximations or polynomial mapping) to simulate tube compression.
+* **Time-Domain Processing (Delay/Chorus):** * **Circular Ring Buffers:** Stores audio samples in a pre-allocated memory array.   
+  * **Fractional Delay & LFOs:** Modulates the read-pointer of the ring buffer using Low Frequency Oscillators. Linear interpolation is applied between samples to prevent pitch artifacts.
+* **Frequency-Domain Processing (EQ):** * **Biquad Filters:** Implements cascaded Infinite Impulse Response (IIR) filters. The LLM dictates the coefficients (Q-factor, center frequency, and gain) to create parametric EQ bands.
 
-### Effect Actuation (Hardware Control)
-* **Optical Gain Staging:** The firmware translates the target analog gain into a high-speed PWM signal. This PWM frequency is set well above the human hearing range (>20kHz) and heavily RC-filtered into a stable DC voltage to drive the LED in the VGA stage. This ensures zero switching noise bleeds into the LDR and the audio path.
-
-### Serial Communication Protocol
-* **Non-Blocking UART:** The firmware maintains a high baud-rate UART connection with the host machine. 
-* **Payload Parsing:** Incoming JSON payloads from the backend are parsed asynchronously. This ensures that adjusting parameters—like changing a biquad coefficient or updating the PWM duty cycle for the analog stage—never stalls the critical audio sampling interrupts.
+### Effect Actuation & Serial Communication
+* **Optical Gain Staging:** The firmware translates the target analog gain into a high-frequency PWM signal (>20kHz, RC-filtered into DC) to drive the LED in the VGA stage, preventing digital switching noise from bleeding into the audio path.
+* **Non-Blocking UART:** Maintains a high baud-rate connection. Incoming JSON payloads from the host machine are parsed asynchronously, ensuring parameter updates (like changing an EQ coefficient or VGA gain) never stall the audio interrupts.
 
 ---
 
 ## 3. Software & AI Architecture
-The software stack provides the intelligence of the amplifier, handling user intent, LLM prompting, and serial communication with the embedded hardware.
+The software stack provides the intelligence of the amplifier, handling user intent, LLM prompting, hardware calibration, and serial communication.
 
 ### Tech Stack
 * **Frontend:** React / Next.js
@@ -76,5 +71,6 @@ The software stack provides the intelligence of the amplifier, handling user int
 ### Core Features
 * **Natural Language Tone Engine:** Users submit descriptive requests ("make it sound muddy but sharp"). The Python backend constructs a prompt including the current system capabilities and queries the LLM. The AI returns a structured JSON payload of objective DSP coefficients and analog gain values.
 * **Song/Artist Search:** A database-driven search function. When a user requests a specific song, the system retrieves known tonal metadata (amp type, specific pedal settings) and applies the corresponding DSP transformations and LDR gain stages.
+* **Hardware Calibration Profiler:** Because physical LDRs have manufacturing tolerances, the software includes a calibration routine that measures and maps the exact PWM-to-Resistance curve of the specific LDR on the board, ensuring the LLM's gain predictions remain mathematically accurate.
 * **Hardware Translation Layer:** A lightweight local service takes the generated JSON payload from the backend and streams the encoded parameters over the Serial connection to the microcontroller's registers.
-* **Digital Dashboard:** A real-time UI reflecting the physical and digital state of the amplifier. Users can manually adjust the AI's suggested filter cutoffs, clipping thresholds, or delay times, and save these refined setups to the database as custom presets.
+* **Digital Dashboard:** A real-time UI reflecting the physical and digital state of the amplifier. Users can manually adjust the AI's suggested filter cutoffs, clipping thresholds, or delay times, and save these refined setups to their Supabase profile as custom presets.
