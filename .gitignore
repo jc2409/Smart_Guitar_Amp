@@ -39,3 +39,4 @@ _autosave-*
 
 # VS Code local history extension
 .history/
+.vscode/

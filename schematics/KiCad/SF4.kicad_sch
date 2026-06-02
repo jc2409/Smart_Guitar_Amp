@@ -3299,12 +3299,6 @@
 		(uuid "c364973a-9a67-4667-8185-a3a5c6c6cbdf")
 	)
 	(junction
-		(at 86.36 60.96)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "0d371c52-e67b-4d91-9f68-93c9263f32c7")
-	)
-	(junction
 		(at 44.45 58.42)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -3327,6 +3321,12 @@
 		(diameter 1.016)
 		(color 0 0 0 0)
 		(uuid "3dcc657b-55a1-48e0-9667-e01e7b6b08b5")
+	)
+	(junction
+		(at 86.36 60.96)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "40766378-801c-443f-ba3f-4f2adf94a025")
 	)
 	(junction
 		(at 196.85 60.96)
@@ -4186,6 +4186,16 @@
 	)
 	(wire
 		(pts
+			(xy 86.36 71.12) (xy 86.36 74.93)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "a3e81405-a144-445f-bd63-817686ddf534")
+	)
+	(wire
+		(pts
 			(xy 157.48 60.96) (xy 161.29 60.96)
 		)
 		(stroke
@@ -4476,16 +4486,6 @@
 	)
 	(wire
 		(pts
-			(xy 86.36 71.12) (xy 86.36 74.93)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "e3f82f20-ee9f-4439-989f-63780858c316")
-	)
-	(wire
-		(pts
 			(xy 223.52 139.7) (xy 223.52 129.54)
 		)
 		(stroke
@@ -4546,16 +4546,6 @@
 	)
 	(wire
 		(pts
-			(xy 86.36 60.96) (xy 86.36 63.5)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "f5006e57-d444-4d4c-a8a6-f0c5eb4fba3d")
-	)
-	(wire
-		(pts
 			(xy 223.52 147.32) (xy 223.52 149.86)
 		)
 		(stroke
@@ -4573,6 +4563,16 @@
 			(type default)
 		)
 		(uuid "f8163b23-f150-4b51-9dda-5d53ae92d7c9")
+	)
+	(wire
+		(pts
+			(xy 86.36 60.96) (xy 86.36 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "f81f10cc-2f24-41a9-be79-bc0819da7d1f")
 	)
 	(wire
 		(pts
@@ -7555,7 +7555,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Polarized")
-		(at 86.36 67.31 0)
+		(at 86.36 67.31 180)
 		(unit 1)
 		(body_style 1)
 		(exclude_from_sim no)
@@ -7565,7 +7565,7 @@
 		(dnp no)
 		(uuid "79dedcca-9a99-42ea-9b31-88d60cc98a02")
 		(property "Reference" "C2"
-			(at 89.408 68.326 0)
+			(at 83.312 66.294 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7576,7 +7576,7 @@
 			)
 		)
 		(property "Value" "10u"
-			(at 89.408 70.866 0)
+			(at 83.312 63.754 0)
 			(show_name no)
 			(do_not_autoplace no)
 			(effects
@@ -7587,7 +7587,7 @@
 			)
 		)
 		(property "Footprint" ""
-			(at 87.3252 71.12 0)
+			(at 85.3948 63.5 0)
 			(hide yes)
 			(show_name no)
 			(do_not_autoplace no)
@@ -8866,7 +8866,7 @@
 				(justify left)
 			)
 		)
-		(property "Value" "220"
+		(property "Value" "10k"
 			(at 138.43 105.4099 0)
 			(show_name no)
 			(do_not_autoplace no)
