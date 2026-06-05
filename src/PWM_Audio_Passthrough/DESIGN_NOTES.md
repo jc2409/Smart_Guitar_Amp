@@ -225,3 +225,62 @@ If the recovered audio looks like raw PWM again:
 5. **Carrier too close to audio?** Raise it in firmware (8-bit/62.5 kHz).
 6. **Scope tip:** AC-couple channel B and pick a sensible range to see the ripple
    (the 2.5 V DC bias + spikes will over-range a tight DC window).
+
+---
+
+## 10. Driving the Sennheiser Momentum 4 (line-input mode)
+
+**Connection assumption:** headphones powered **ON**, fed via the 2.5 mm aux cable.
+In this mode you drive the headphones' **high-impedance aux/line input** (their own
+internal amp drives the speakers). You do **NOT** drive the low-impedance drivers, so
+**no headphone power amp is needed** — just deliver a clean, level-controlled,
+DC-blocked, mono line signal.
+
+### Design rule
+Finish ALL filtering first, then present a **low-impedance, level-controlled output**.
+Do not tap the signal from behind a series resistor. The LM358 is a **dual** op-amp, so
+use its unused second half (U2A) as the final output buffer — no new chip required.
+
+### Final output stage
+```
+   ── LP stage 1 ──    ── LP stage 2 ──    ── output buffer ──   ── level + DC block ──
+PWM ─R1─┬─→(+)U2B─R2─┬─→(+)U2A──┬─Rout─┬─C8─┬── VR1 top
+(pin10) │  (buffer)  │ (buffer) │  +   │    │   wiper ──→ TIP + RING (J6)
+       C1        ┌──(−)        (−)─────┘    └── VR1 10k log
+        │       C2          (− tied to out)        bottom ── GND
+       GND       │           unity gain                          SLEEVE (J6) ── GND
+                GND
+```
+
+### Component changes from the current single-stage board
+| Ref | Now | Change to | Why |
+|-----|-----|-----------|-----|
+| R1 (was R12) | 1k | **2.2 kΩ** | LP stage 1, fc ≈ 4.8 kHz |
+| C1 (was C7) | 10 nF (`103`) | **15 nF (`153`) film** | LP stage 1 |
+| R2 | — | **add 2.2 kΩ** | LP stage 2 |
+| C2 | — | **add 15 nF (`153`) film** | LP stage 2 |
+| U2A | unused | wire as 2nd unity buffer | low-Z output |
+| Rout | — | **add 220–470 Ω** | protect op-amp from cable/short |
+| C8 | 220 nF | **10 µF electrolytic** | DC block (`+` toward op-amp) |
+| VR1 | — | **add 10 kΩ log ("audio taper") pot** | volume / level match (safety!) |
+| R13 | 100k | **remove** | the pot now provides C8's DC ground path |
+
+### Critical wiring
+1. **Tie TIP and RING together** at the jack. The effect is MONO; the headphones are
+   STEREO. Tip-only = sound in one ear. T + R → pot wiper; **S → GND**.
+2. **Volume pot:** signal → top, **wiper → jack (T+R)**, bottom → GND.
+3. **Common ground** between Arduino GND and the jack sleeve; use shielded cable.
+
+### Why keep the full two-stage filter even though the carrier is inaudible
+Active ANC headphones **re-digitize the aux input** (ADC ~48 kHz). A 62.5 kHz carrier
+residue would **alias** into the audible band as a whistle/noise. The two-stage filter
+(~−44 dB at the carrier) prevents that. Don't drop the second RC stage.
+
+### LM358 note
+Output swings ~0 V to ~3.5 V (can't reach +5 V). Biased at 2.5 V, that's ~±1 V clean
+swing — plenty for line level. Because the signal never crosses 0 V, the LM358's
+crossover distortion is avoided (the one regime where it's acceptable for audio).
+
+### If you ever need PASSIVE (low-impedance driver) drive instead
+The LM358 can't do it. Add a current-capable headphone amp (NJM4556, PAM8908, TPA6132)
+and a much larger coupling cap (~220–470 µF for 32 Ω, else the bass is gutted).
