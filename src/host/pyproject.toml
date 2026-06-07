@@ -1,9 +1,14 @@
 [project]
 name = "host"
-version = "0.1.0"
-description = "Add your description here"
+version = "0.2.0"
+description = "SF4 smart guitar amp host: serial bridge, LLM tone engine, web UI"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "pyserial>=3.5",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "anthropic>=0.40",
+    "pydantic>=2.7",
+    "python-dotenv>=1.0",
 ]

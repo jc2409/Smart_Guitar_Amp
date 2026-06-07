@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SF4 — Smart Guitar Amp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Anton&family=Oswald:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div class="grain" aria-hidden="true"></div>
+
+  <div class="chassis">
+    <!-- ── Faceplate / header ─────────────────────────────────── -->
+    <header class="faceplate">
+      <div class="brand">
+        <span class="wordmark">SF4</span>
+        <span class="model">SMART GUITAR AMP · MODEL DSP-1</span>
+      </div>
+      <div class="status">
+        <span id="conn-dot" class="dot"></span>
+        <span id="conn-text" class="readout">connecting…</span>
+      </div>
+    </header>
+
+    <div class="screws"><i></i><i></i><i></i><i></i></div>
+
+    <main>
+      <!-- ── Manual control panel ─────────────────────────────── -->
+      <section class="panel controls">
+        <div class="panel-head">
+          <h2>Control</h2>
+          <button id="reset-btn" class="reset" title="Reset all parameters to defaults">⟲ Default</button>
+        </div>
+
+        <!-- footswitch-style effect selector -->
+        <div class="effects" id="effects">
+          <button class="fx" data-effect="clean"><span class="led-tip"></span>Clean</button>
+          <button class="fx" data-effect="overdrive"><span class="led-tip"></span>Overdrive</button>
+          <button class="fx" data-effect="delay"><span class="led-tip"></span>Delay</button>
+          <button class="fx" data-effect="chorus"><span class="led-tip"></span>Chorus</button>
+          <button class="fx" data-effect="reverb"><span class="led-tip"></span>Reverb</button>
+        </div>
+
+        <!-- rotary knobs (injected by app.js) -->
+        <div class="knobs" id="knobs"></div>
+
+        <!-- gain / VGA -->
+        <div class="vga">
+          <label class="toggle">
+            <input type="checkbox" id="auto_vga" checked />
+            <span class="switch"></span>
+            Auto gain (VGA)
+          </label>
+          <div class="knob-cell" id="cell-gain">
+            <div class="knob" id="knob-gain"><div class="knob-dial"></div></div>
+            <label>Manual gain</label>
+            <output id="gain-val">15</output>
+            <input class="sr-only" type="range" id="gain" min="0" max="255" value="15" disabled />
+          </div>
+        </div>
+
+        <!-- meters -->
+        <div class="meters">
+          <div class="meter">
+            <span class="meter-label">Output level</span>
+            <div class="vu"><div id="vu-fill"></div><div class="vu-gloss"></div></div>
+          </div>
+          <div class="leds">
+            <span id="clip-led" class="led">CLIP</span>
+            <span class="vga-readout">VGA <b id="vga-readout">–</b></span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Chat panel ───────────────────────────────────────── -->
+      <section class="panel chat">
+        <h2>Talk to the amp</h2>
+        <div id="messages" class="messages">
+          <div class="msg assistant">Tell me a tone, a song, or an artist —
+            e.g. “warm bluesy overdrive” or “Gilmour on Comfortably Numb”.</div>
+        </div>
+        <form id="chat-form" class="chat-input">
+          <input type="text" id="chat-text" placeholder="Describe a sound…" autocomplete="off" />
+          <button type="submit" id="chat-send">Send</button>
+        </form>
+      </section>
+    </main>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

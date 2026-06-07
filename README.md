@@ -64,13 +64,39 @@ Once digitized, the audio array passes through an interrupt-driven pipeline to a
 The software stack provides the intelligence of the amplifier, handling user intent, LLM prompting, hardware calibration, and serial communication.
 
 ### Tech Stack
-* **Frontend:** React / Next.js
-* **Backend:** Python / FastAPI
-* **Database:** Supabase 
+* **Backend + UI:** Python / FastAPI serving a static browser dashboard (vanilla HTML/JS/CSS)
+* **LLM:** Anthropic Claude (official Python SDK), tool-use for parameter setting
+* **Link:** pyserial bridge to the Arduino (atomic `P` set-all frame + `T` telemetry)
+
+A single FastAPI process (`src/host/app/`) owns the serial port and the authoritative
+amp state, runs the LLM tone engine, and serves the dashboard.
+
+```bash
+cd src/host
+make install        # uv (or venv + pip)
+make env            # → edit .env, set ANTHROPIC_API_KEY
+make run            # http://127.0.0.1:8000
+```
+
+See [`src/host/README.md`](src/host/README.md) for the full Makefile targets,
+configuration, API, and CLI.
 
 ### Core Features
-* **Natural Language Tone Engine:** Users submit descriptive requests ("make it sound muddy but sharp"). The Python backend constructs a prompt including the current system capabilities and queries the LLM. The AI returns a structured JSON payload of objective DSP coefficients and analog gain values.
-* **Song/Artist Search:** A database-driven search function. When a user requests a specific song, the system retrieves known tonal metadata (amp type, specific pedal settings) and applies the corresponding DSP transformations and LDR gain stages.
-* **Hardware Calibration Profiler:** Because physical LDRs have manufacturing tolerances, the software includes a calibration routine that measures and maps the exact PWM-to-Resistance curve of the specific LDR on the board, ensuring the LLM's gain predictions remain mathematically accurate.
-* **Hardware Translation Layer:** A lightweight local service takes the generated JSON payload from the backend and streams the encoded parameters over the Serial connection to the microcontroller's registers.
-* **Digital Dashboard:** A real-time UI reflecting the physical and digital state of the amplifier. Users can manually adjust the AI's suggested filter cutoffs, clipping thresholds, or delay times, and save these refined setups to their Supabase profile as custom presets.
+The web UI does two things, both driving one shared parameter state:
+
+* **Manual control panel:** Sliders / knobs / an effect selector that feel like a real
+  effects unit. Each change is pushed straight to the amp via the `P` frame.
+* **Talk to the LLM:** A conversational chat — describe a tone ("warm bluesy overdrive")
+  or name a song/artist ("Gilmour on Comfortably Numb"). Claude replies in natural
+  language and, via a `set_amp_params` tool, sets the amp itself; the manual knobs move to
+  match. Iterative requests ("a touch less reverb") work because the current sound is fed
+  into each turn. All values are validated/clamped to the firmware ranges before they reach
+  the MCU.
+* **Live telemetry:** A VU meter, clip LED, and VGA-gain readout stream from the board over
+  Server-Sent Events.
+
+> **No-hardware mode:** with no board attached the backend falls back to a mock link, so the
+> UI and LLM are fully demoable without the amp.
+
+*Not yet built (clean seams left for them):* preset save/load + database, song-metadata DB,
+and the LDR calibration profiler.

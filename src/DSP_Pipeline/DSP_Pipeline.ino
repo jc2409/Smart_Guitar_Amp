@@ -21,6 +21,7 @@
  * PWM  : pin 10 / OC1B, 8-bit Fast PWM, 62.5 kHz carrier -> RC filter -> out
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -194,6 +195,7 @@ void setup() {
   Serial.println(F("  m<0-255>  wet mix"));
   Serial.println(F("  r<1-48>   chorus depth (samples)"));
   Serial.println(F("  s<1-20>   chorus LFO rate"));
+  Serial.println(F("  P,e,drv,dl,fb,mix,dp,rt,av,gain  atomic set-all (gain<0=keep)"));
   Serial.println(F("Telemetry: T,effect,peak,vga,clip,rxErr"));
 
   // ADC: free-running on A0, interrupt on completion, prescaler 128 -> ~9.6 kHz
@@ -261,6 +263,51 @@ static void handleCmd(char cmd, const char *arg) {
       P.effect = FX_CLEAN;
       interrupts();
       Serial.println(F(">> bypass (clean)"));                         break;
+
+    // ── Atomic set-all frame (host link) ─────────────────────────────────
+    // P,<effect>,<drive>,<delayLen>,<feedback>,<mix>,<depth>,<rate>,<autoVGA>,<gain>
+    // Applies the whole parameter bank in one cli/sei section so the ISR never
+    // reads a half-updated mix of old + new values. gain < 0 leaves the VGA
+    // (and auto-VGA mode) untouched; gain >= 0 sets manual gain + auto-VGA off.
+    case 'P': {
+      int e, drv, dl, fb, mx, dp, rt, av, gn;
+      if (sscanf(arg, ",%d,%d,%d,%d,%d,%d,%d,%d,%d",
+                 &e, &drv, &dl, &fb, &mx, &dp, &rt, &av, &gn) != 9) {
+        g_rxErr++;
+        break;
+      }
+      uint8_t  fx       = (uint8_t)constrain(e,   FX_CLEAN, FX_REVERB);
+      int16_t  thresh   = (int16_t)constrain(drv, 1, 511);
+      uint16_t delayLen = (uint16_t)constrain(dl, 1, BUF_SIZE);
+      uint8_t  feedback = (uint8_t)constrain(fb,  0, 255);
+      uint8_t  mix      = (uint8_t)constrain(mx,  0, 255);
+      uint8_t  depth    = (uint8_t)constrain(dp,  1, 48);
+      uint8_t  rate     = (uint8_t)constrain(rt,  1, 20);
+
+      noInterrupts();
+      memset(audioBuf, 0, sizeof(audioBuf));   // effect may change → clear history
+      wIdx = 0; lfoPhase = 0;
+      P.effect   = fx;
+      P.thresh   = thresh;
+      P.delayLen = delayLen;
+      P.feedback = feedback;
+      P.mix      = mix;
+      P.depth    = depth;
+      P.rate     = rate;
+      interrupts();
+
+      if (gn >= 0) {                            // explicit manual gain
+        OCR1A = (uint8_t)constrain(gn, 0, 255);
+        g_autoVGA = false;
+      } else {                                  // -1 sentinel: honour autoVGA flag
+        g_autoVGA = (av != 0);
+      }
+      Serial.print(F(">> set effect=")); Serial.print(fx);
+      Serial.print(F(" drive="));        Serial.print(thresh);
+      Serial.print(F(" autoVGA="));      Serial.println(g_autoVGA ? F("ON") : F("OFF"));
+      break;
+    }
+
     default:
       g_rxErr++;
       break;
@@ -271,7 +318,7 @@ static void handleCmd(char cmd, const char *arg) {
 //  Main loop — serial parser + VGA
 // ═══════════════════════════════════════════════════════════════════════════
 void loop() {
-  static char    line[24];
+  static char    line[48];   // wide enough for the atomic 'P' set-all frame
   static uint8_t llen = 0;
 
   // Serial command parser

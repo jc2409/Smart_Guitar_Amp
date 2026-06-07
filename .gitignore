@@ -40,3 +40,7 @@ _autosave-*
 # VS Code local history extension
 .history/
 .vscode/
+
+.env
+__pycache__/
+*.pyc

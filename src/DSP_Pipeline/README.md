@@ -1,20 +1,25 @@
 # SF4 Real-Time Guitar DSP Pipeline — Firmware
 
-Arduino Uno R3 (ATmega328P) firmware implementing the real-time DSP pipeline from
-the SF4 Interim Report: **Clipping → Biquad IIR EQ → Delay**, with a serial
-command interface for live parameter control.
+Arduino Uno R3 (ATmega328P) firmware implementing a real-time, **selectable
+multi-effect** guitar DSP — **Clean / Overdrive / Delay / Chorus / Reverb** — with
+a serial command interface for live parameter control.
 
 Sketch: [`DSP_Pipeline.ino`](DSP_Pipeline.ino)
+
+> **Note:** an earlier version of this firmware (and this README) ran a *cumulative*
+> `Clip → Biquad EQ → Delay` pipeline driven by an `S,...` frame at 19230 Hz. That is
+> obsolete. The current firmware selects **one** effect at a time and runs the ADC at
+> **~9615 Hz**. The host software (`../host/`) targets this current protocol.
 
 ---
 
 ## Signal path
 
 ```
-guitar (biased 2.5 V) ─▶ A0 ─▶ ADC (free-running, 10-bit, ~19.23 kHz)
+guitar (biased 2.5 V) ─▶ A0 ─▶ ADC (free-running, 10-bit, ~9.615 kHz, prescaler 128)
                                   │
                                   ▼  ISR(ADC_vect)   ← one DSP tick per sample
-                         [ Clip ] → [ Biquad EQ ] → [ Delay ]
+                    one of: Clean | Overdrive | Delay | Chorus | Reverb
                                   │
                                   ▼
                     OCR1B (8-bit, 62.5 kHz Fast PWM, pin 10)
@@ -26,25 +31,26 @@ guitar (biased 2.5 V) ─▶ A0 ─▶ ADC (free-running, 10-bit, ~19.23 kHz)
 - **Input**: guitar AC-coupled and biased to 2.5 V on A0; ADC reads 0..1023 (512 = silence).
 - **Output**: pin 10 (OC1B), 8-bit Fast PWM, 62.5 kHz carrier, smoothed by an external RC filter.
 - **Optocoupler**: pin 9 (OC1A), same Timer1, sets the analog VGA gain via the LED/LDR.
+- **Sample rate**: ADC prescaler 128 → ~9615 Hz (Nyquist 4.8 kHz, matching the anti-alias LPF).
+  Delay/reverb taps are `t = samples / 9615 Hz`; the 512-sample buffer holds ~53 ms.
 
 ---
 
-## DSP stages
+## Effects
 
 All processing is **fixed-point** (no float in the ISR). Samples are carried as
-signed values centred on 0 (range −512..+511); biquad coefficients are **Q13**
-(1.0 = 8192).
+signed values centred on 0 (range −512..+511). **One effect is active at a time**
+(selected with `e`); switching effects clears the audio ring buffer.
 
-| Stage | What it does | Parameters |
-|-------|--------------|------------|
-| **1. Clipping** | Hard symmetric clip → overdrive. Lower threshold = more distortion. | `clipThresh` (1..512; 512 = clean) |
-| **2. Biquad EQ** | RBJ-cookbook IIR filter (Direct Form I): low-pass / high-pass / arbitrary. | `b0,b1,b2,a1,a2` (Q13) |
-| **3. Delay** | Feedback comb / echo (slapback). | `delaySamples`, `feedback`, `mix` |
+| ID | Effect | What it does | Parameters |
+|----|--------|--------------|------------|
+| 0 | **Clean** | Transparent passthrough | — |
+| 1 | **Overdrive** | Pre-amplify then hard-clip | `thresh` 1..511 (drive: 16=breakup, 180=rock, 480=metal) |
+| 2 | **Delay** | Single echo with feedback (~53 ms max) | `delayLen` 1..512, `feedback` 0..255, `mix` 0..255 |
+| 3 | **Chorus** | Triangle-LFO modulated short delay, 50/50 dry/wet | `depth` 1..48, `rate` 1..20 |
+| 4 | **Reverb** | Ten-tap feedback network | `feedback` 0..255 (keep < 205), `mix` 0..255 |
 
-Defaults = transparent passthrough (no clip, flat EQ, delay off).
-
-**Delay timing**: `t = delaySamples / 19230 Hz`. Max 512 taps ≈ **26.6 ms**
-(SRAM-limited, `int16` line). Feedback decays each repeat by `feedback/256`.
+**Delay/reverb timing**: `t = samples / 9615 Hz`. The 512-sample `int8` line holds ~53 ms.
 
 ---
 
@@ -55,61 +61,54 @@ it (robust to `\n` / `\r\n` / no line ending).
 
 | Command | Example | Effect |
 |---------|---------|--------|
-| `g<0..255>` | `g180` | Optocoupler / VGA gain (OCR1A) |
-| `c<1..512>` | `c120` | Clip threshold (512 = clean) |
-| `d<0..512>` | `d300` | Delay length in samples (0 = off) |
-| `f<0..255>` | `f160` | Delay feedback / regeneration |
-| `m<0..255>` | `m200` | Delay wet mix |
-| `l<fc>` | `l3500` | Low-pass EQ at fc Hz (Q=0.707) |
-| `h<fc>` | `h120` | High-pass EQ at fc Hz (Q=0.707) |
-| `B b0 b1 b2 a1 a2` | `B 8192 0 0 0 0` | Raw Q13 biquad coefficients |
+| `e<0..4>` | `e1` | Select effect (0=clean 1=overdrive 2=delay 3=chorus 4=reverb) |
+| `c<1..511>` | `c180` | Overdrive drive (thresh) |
+| `d<1..512>` | `d400` | Delay length in samples |
+| `f<0..255>` | `f190` | Delay/reverb feedback / decay |
+| `m<0..255>` | `m220` | Delay/reverb wet mix |
+| `r<1..48>` | `r24` | Chorus depth |
+| `s<1..20>` | `s8` | Chorus LFO rate |
+| `v<0\|1>` | `v1` | Auto-VGA on/off |
+| `g<0..255>` | `g15` | Manual VGA gain (OCR1A); turns auto-VGA off |
 | `x` | `x` | Bypass (clean passthrough) |
-| `S,...` | `S,100,8192,0,0,0,0,300,128,200,180` | Atomic set-all frame (host link) |
+| `P,...` | `P,1,180,400,190,220,24,8,1,-1` | Atomic set-all frame (host link) |
 
-Stages are **cumulative** (e.g. `c100` then `l3000` = clip *and* low-pass). `x` resets all.
-The single-letter commands are for manual testing; the host uses the `S` frame.
+The single-letter commands are for manual testing; the host uses the `P` frame.
 
 > **Note**: a delay/echo is only audible on *transient* material (real guitar,
 > plucks, music). On a steady sine it just produces inaudible comb filtering.
 
 ## Two-way host protocol (MCU ↔ PC)
 
-The defining "Data Logger" requirement: structured parameters in, status
-telemetry out. The host speaks JSON; the Python translation layer
-([`../host/sf4_serial.py`](../host/sf4_serial.py)) converts it to/from compact
-serial frames so the MCU stays simple.
+Structured parameters in, status telemetry out. The host applies a whole preset
+atomically with one `P` frame and reads `T` telemetry back:
 
 ```
-PC -> MCU : S,<clip>,<b0>,<b1>,<b2>,<a1>,<a2>,<delay>,<fb>,<mix>,<gain>\n
-MCU -> PC : T,<clipFlag>,<gain>,<peak>,<rxErrors>\n      (emitted ~10 Hz)
+PC -> MCU : P,<effect>,<drive>,<delayLen>,<feedback>,<mix>,<depth>,<rate>,<autoVGA>,<gain>\n
+MCU -> PC : T,<effect>,<peak>,<vga>,<clip>,<rxErr>\n      (emitted ~10 Hz)
 ```
 
-- **`S` frame** — sets the entire parameter bank atomically (via `setParams`)
-  plus the optocoupler gain. Malformed frames are rejected and counted in
-  `rxErrors`.
-- **`T` telemetry** — `clipFlag` (clipped since last report), `gain` (current
-  `OCR1A`), `peak` (max |input| since last report — a VU/"buffer health" meter),
-  `rxErrors` (malformed-frame count).
+- **`P` frame** — sets the entire parameter bank in one `cli/sei` section (no
+  transient old+new mix), clearing the audio buffer on effect change. `gain` field
+  `< 0` leaves the VGA untouched and honours the `autoVGA` flag; `>= 0` sets a manual
+  gain and turns auto-VGA off. Malformed frames are rejected and counted in `rxErr`.
+- **`T` telemetry** — `effect` (active effect ID), `peak` (max |output| since last
+  report — a VU meter), `vga` (current `OCR1A`), `clip` (clipped since last report),
+  `rxErr` (malformed-frame count).
 
-### Host script
+### Host software
+
+The full interface is the **web app** in [`../host/`](../host/) (FastAPI + LLM tone
+engine + browser dashboard). For bench testing without a browser:
 
 ```bash
-pip install pyserial
-python ../host/sf4_serial.py --port /dev/tty.usbmodemXXXX --demo fullstack
-python ../host/sf4_serial.py --port /dev/tty.usbmodemXXXX --json preset.json
+cd ../host && uv sync          # or: pip install -e .
+python sf4_serial.py --demo overdrive
+python sf4_serial.py --effect reverb --feedback 190 --mix 220
 ```
 
-It validates/clamps JSON params, serialises the `S` frame, sends it, then prints
-parsed `T` telemetry as a live meter. Built-in demos: `clean`, `overdrive`,
-`lowpass`, `slapback`, `fullstack`. JSON schema:
-
-```json
-{
-  "clip_threshold": 100,
-  "biquad": {"b0": 8192, "b1": 0, "b2": 0, "a1": 0, "a2": 0},
-  "delay_samples": 300, "feedback": 128, "mix": 200, "gain": 180
-}
-```
+It builds a validated `AmpParams`, serialises the `P` frame, sends it, then prints
+parsed `T` telemetry as a live meter.
 
 ---
 

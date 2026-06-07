@@ -1,0 +1,8 @@
+# SF4 host dependencies (mirror of pyproject.toml).
+# Install with:  pip install -r requirements.txt
+pyserial>=3.5
+fastapi>=0.115
+uvicorn[standard]>=0.30
+anthropic>=0.40
+pydantic>=2.7
+python-dotenv>=1.0
