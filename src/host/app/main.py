@@ -11,6 +11,7 @@ Run from src/host/:
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import os
 import threading
@@ -23,7 +24,7 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -101,6 +102,25 @@ def chat(req: ChatRequest):
     except Exception as exc:
         raise HTTPException(502, f"LLM error: {exc}")
     return {"reply": reply, "params": _dump(params), "changed": changed}
+
+
+@app.post("/api/transcribe")
+async def transcribe(audio: UploadFile = File(...)):
+    """Voice input: receive a recorded audio blob, return Whisper transcription."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        raise HTTPException(503, "OPENAI_API_KEY not set — voice input unavailable.")
+    try:
+        import openai
+        data = await audio.read()
+        buf = io.BytesIO(data)
+        buf.name = audio.filename or "recording.webm"
+        result = openai.OpenAI(api_key=api_key).audio.transcriptions.create(
+            model="whisper-1", file=buf
+        )
+        return {"text": result.text}
+    except Exception as exc:
+        raise HTTPException(502, f"Transcription error: {exc}")
 
 
 @app.get("/api/telemetry")
