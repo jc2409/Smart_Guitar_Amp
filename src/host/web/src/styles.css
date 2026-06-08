@@ -269,22 +269,69 @@ h2 { margin: 0; font-size: 13px; font-weight: 600; text-transform: uppercase; le
 .toggle input:checked + .switch { background: linear-gradient(90deg, var(--rust), var(--accent)); }
 .toggle input:checked + .switch::after { transform: translateX(20px); }
 
-/* ── Meters ───────────────────────────────────────────────────────────── */
-.meters { margin-top: 22px; padding-top: 18px; border-top: 1px dashed var(--edge); }
+/* ── Panel head / preview tag (shared by tuner) ───────────────────────── */
 .meter-head { display: flex; align-items: center; justify-content: space-between; }
 .meter-label { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
 .preview-tag { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--edge)); padding: 2px 7px; border-radius: 4px; }
-.vu { position: relative; margin-top: 8px; height: 18px; background: #0f0b08; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; box-shadow: inset 0 2px 5px rgba(0,0,0,.7); }
-.vu-fill { height: 100%; background: linear-gradient(90deg, var(--green) 0%, var(--accent) 62%, var(--rust) 100%); box-shadow: 0 0 12px -2px var(--accent); transition: width .08s linear; }
-.vu-gloss { position: absolute; inset: 0 0 50% 0; background: linear-gradient(180deg, rgba(255,255,255,.18), transparent); pointer-events: none; }
-.spark { margin-top: 8px; height: 46px; background: #0f0b08; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
-.spark svg { width: 100%; height: 46px; display: block; }
-.leds { display: flex; align-items: center; gap: 18px; margin-top: 14px; font-family: var(--font-mono); font-size: 12px; }
-.led { padding: 4px 10px; border-radius: 5px; border: 1px solid var(--line); color: var(--muted); letter-spacing: 2px; background: #1a140f; }
-.led.on { color: #fff; background: var(--rust); border-color: var(--rust); box-shadow: 0 0 14px var(--rust); animation: clipflash .25s steps(2) infinite; }
-@keyframes clipflash { 50% { opacity: .55; } }
-.vga-readout { color: var(--muted); letter-spacing: 1px; }
-.vga-readout b { color: var(--accent-hi); }
+
+/* ── Tuner ────────────────────────────────────────────────────────────── */
+.tuner { margin-top: 6px; }
+.tuner-readout {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  margin: 18px 0 8px;
+}
+.tuner-readout.idle { opacity: .55; }
+.tuner-note {
+  font-family: var(--font-disp); font-weight: 600; font-size: 68px; line-height: 1;
+  color: var(--accent-hi); text-shadow: 0 0 22px color-mix(in srgb, var(--accent) 55%, transparent);
+}
+.tuner-note sub { font-size: 26px; opacity: .7; margin-left: 2px; }
+.tuner-freq { font-family: var(--font-mono); font-size: 14px; letter-spacing: 1px; color: var(--muted); }
+
+.tuner-gauge { margin: 16px 0 4px; }
+.tuner-track {
+  position: relative; height: 30px; border-radius: 6px;
+  background: #1a140f; border: 1px solid var(--line);
+  box-shadow: inset 0 2px 6px rgba(0,0,0,.5);
+}
+.tuner-tick {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-family: var(--font-mono); font-size: 14px; color: var(--muted);
+}
+.tuner-tick.flat { left: 10px; }
+.tuner-tick.sharp { right: 10px; }
+.tuner-center {
+  position: absolute; left: 50%; top: 4px; bottom: 4px; width: 2px;
+  transform: translateX(-50%); background: color-mix(in srgb, var(--green) 60%, transparent);
+}
+.tuner-needle {
+  position: absolute; top: 2px; bottom: 2px; width: 4px; border-radius: 3px;
+  transform: translateX(-50%); background: var(--rust);
+  box-shadow: 0 0 12px var(--rust); transition: left .12s ease-out, background .2s, box-shadow .2s;
+}
+.tuner-needle.in-tune { background: var(--green); box-shadow: 0 0 14px var(--green); }
+.tuner-status {
+  text-align: center; margin-top: 10px; font-family: var(--font-mono);
+  font-size: 12px; letter-spacing: 1px; min-height: 16px;
+}
+.tuner-status .ok { color: var(--green); }
+.tuner-status .off { color: var(--rust); }
+.tuner-status .muted { color: var(--muted); }
+
+.tuner-strings {
+  display: flex; justify-content: space-between; gap: 8px; margin-top: 18px;
+}
+.tuner-string {
+  flex: 1; text-align: center; padding: 8px 0; border-radius: 6px;
+  border: 1px solid var(--line); background: #1a140f;
+  font-family: var(--font-mono); font-size: 14px; color: var(--muted);
+  transition: all .2s;
+}
+.tuner-string sub { font-size: 10px; opacity: .7; }
+.tuner-string.sel {
+  color: var(--accent-hi); border-color: var(--accent);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
+}
 
 /* ── Chat ─────────────────────────────────────────────────────────────── */
 .chat { display: flex; flex-direction: column; }

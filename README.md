@@ -86,15 +86,18 @@ configuration, API, and CLI.
 The web UI does two things, both driving one shared parameter state:
 
 * **Manual control panel:** Sliders / knobs / an effect selector that feel like a real
-  effects unit. Each change is pushed straight to the amp via the `P` frame.
+  effects unit. Each change is pushed straight to the amp via the `P` frame. The selector
+  includes a **Tuner** mode: the firmware detects the played string's pitch and the UI
+  shows it against the six standard-tuning strings (E2 A2 D3 G3 B3 E4) with a flat↔sharp
+  cents needle.
 * **Talk to the LLM:** A conversational chat — describe a tone ("warm bluesy overdrive")
   or name a song/artist ("Gilmour on Comfortably Numb"). Claude replies in natural
   language and, via a `set_amp_params` tool, sets the amp itself; the manual knobs move to
   match. Iterative requests ("a touch less reverb") work because the current sound is fed
   into each turn. All values are validated/clamped to the firmware ranges before they reach
   the MCU.
-* **Live telemetry:** A VU meter, clip LED, and VGA-gain readout stream from the board over
-  Server-Sent Events.
+* **Live telemetry:** The board streams status over Server-Sent Events (~10 Hz) — connection
+  state and, in Tuner mode, the detected pitch that drives the tuner display.
 
 > **No-hardware mode:** with no board attached the backend falls back to a mock link, so the
 > UI and LLM are fully demoable without the amp.

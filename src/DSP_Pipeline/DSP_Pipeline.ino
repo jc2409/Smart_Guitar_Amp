@@ -37,6 +37,7 @@
 #define FX_DELAY     2
 #define FX_CHORUS    3
 #define FX_REVERB    4
+#define FX_TUNER     5   // clean passthrough + fundamental-pitch detection
 
 // ─── Parameter bank (written by loop(), read by ISR) ──────────────────────
 struct Params {
@@ -71,6 +72,10 @@ volatile int16_t g_peak  = 0;
 volatile uint8_t g_clip  = 0;
 uint16_t         g_rxErr = 0;
 bool             g_autoVGA = true;
+
+// ─── Tuner ────────────────────────────────────────────────────────────────
+// Detected fundamental in deci-Hz (Hz x 10); 0 = no pitch / not in tuner mode.
+volatile uint16_t g_freqDeciHz = 0;
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  processEffect — called from ADC ISR, one sample per call (~52 µs budget)
@@ -166,6 +171,16 @@ static inline uint16_t processEffect(uint16_t in) {
       y = (int16_t)outv;
       break;
     }
+
+    // ── 5. Tuner ──────────────────────────────────────────────────────────
+    // Audible output is clean passthrough (y = x); meanwhile the raw signal is
+    // logged into the ring buffer so loop() can run AMDF pitch detection on it.
+    case FX_TUNER: {
+      audioBuf[wIdx] = (int8_t)(x >> 2);
+      wIdx = (wIdx + 1) & BUF_MASK;
+      // y stays = x (clean)
+      break;
+    }
   }
 
   // Track post-effect peak so AGC responds to what the listener actually hears
@@ -187,8 +202,8 @@ void setup() {
   pinMode( 9, OUTPUT);   // VGA PWM out   (OC1A)
 
   Serial.begin(115200);
-  Serial.println(F("SF4 DSP v2  [0=clean 1=overdrive 2=delay 3=chorus 4=reverb]"));
-  Serial.println(F("  e<0-4>    select effect           x         bypass"));
+  Serial.println(F("SF4 DSP v2  [0=clean 1=overdrive 2=delay 3=chorus 4=reverb 5=tuner]"));
+  Serial.println(F("  e<0-5>    select effect           x         bypass"));
   Serial.println(F("  c<16-511> overdrive drive          v<0|1>    auto-VGA"));
   Serial.println(F("  d<1-512>  delay samples           g<0-255>  manual gain"));
   Serial.println(F("  f<0-255>  feedback / decay"));
@@ -196,7 +211,7 @@ void setup() {
   Serial.println(F("  r<1-48>   chorus depth (samples)"));
   Serial.println(F("  s<1-20>   chorus LFO rate"));
   Serial.println(F("  P,e,drv,dl,fb,mix,dp,rt,av,gain  atomic set-all (gain<0=keep)"));
-  Serial.println(F("Telemetry: T,effect,peak,vga,clip,rxErr"));
+  Serial.println(F("Telemetry: T,effect,peak,vga,clip,rxErr,freqDeciHz (freq in tuner mode)"));
 
   // ADC: free-running on A0, interrupt on completion, prescaler 128 -> ~9.6 kHz
   ADMUX  = (1 << REFS0);
@@ -222,7 +237,7 @@ static void handleCmd(char cmd, const char *arg) {
   switch (cmd) {
 
     case 'e': {
-      uint8_t fx = (uint8_t)constrain(v, FX_CLEAN, FX_REVERB);
+      uint8_t fx = (uint8_t)constrain(v, FX_CLEAN, FX_TUNER);
       noInterrupts();
       memset(audioBuf, 0, sizeof(audioBuf));
       wIdx = 0; lfoPhase = 0;
@@ -276,7 +291,7 @@ static void handleCmd(char cmd, const char *arg) {
         g_rxErr++;
         break;
       }
-      uint8_t  fx       = (uint8_t)constrain(e,   FX_CLEAN, FX_REVERB);
+      uint8_t  fx       = (uint8_t)constrain(e,   FX_CLEAN, FX_TUNER);
       int16_t  thresh   = (int16_t)constrain(drv, 1, 511);
       uint16_t delayLen = (uint16_t)constrain(dl, 1, BUF_SIZE);
       uint8_t  feedback = (uint8_t)constrain(fb,  0, 255);
@@ -315,6 +330,77 @@ static void handleCmd(char cmd, const char *arg) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+//  Tuner — AMDF pitch detection (runs in loop(), never the ISR)
+// ═══════════════════════════════════════════════════════════════════════════
+//  D(tau) = sum_{n=0..WIN-1} | buf[i-n] - buf[i-n-tau] |  is minimised over the
+//  guitar lag range. The deepest dip is the fundamental period; parabolic
+//  interpolation around it recovers sub-sample resolution (essential for the
+//  high strings, where one whole-sample step is tens of cents at FS 9615 Hz).
+#define TUNER_TAU_MIN  24     // ~400 Hz upper search bound
+#define TUNER_TAU_MAX  128    // ~75 Hz lower search bound
+#define TUNER_WIN      256    // comparison window length in samples
+#define TUNER_SPAN    (TUNER_WIN + TUNER_TAU_MAX)  // samples the AMDF reaches back
+#define TUNER_NOISE    12     // post-effect peak below this = treat as silence
+#define FS_HZ          9615.0f
+
+// The detector works on a frozen copy of the most recent TUNER_SPAN samples.
+// Copying out of the live ring first is essential: the ISR keeps writing at
+// ~9.6 kHz, so an in-place AMDF (tens of ms) would read samples that get
+// overwritten mid-computation and smear the result.
+static int8_t tunerSnap[TUNER_SPAN];   // tunerSnap[0] = newest, [k] = k samples older
+
+// AMDF for one lag over the frozen snapshot (plain linear indexing).
+static uint32_t amdf(uint16_t tau) {
+  uint32_t d = 0;
+  for (uint16_t n = 0; n < TUNER_WIN; n++) {
+    int16_t diff = (int16_t)tunerSnap[n] - (int16_t)tunerSnap[n + tau];
+    d += (diff < 0) ? (uint16_t)(-diff) : (uint16_t)diff;
+  }
+  return d;
+}
+
+static void detectPitch() {
+  noInterrupts();
+  int16_t peak = g_peak;
+  interrupts();
+  if (peak < TUNER_NOISE) { g_freqDeciHz = 0; return; }   // nothing plucked
+
+  // Freeze the window: copy newest-first from the ring. ~384 byte reads finish
+  // in well under one sample period of drift, so the snapshot is coherent.
+  uint16_t i = wIdx;
+  for (uint16_t k = 0; k < TUNER_SPAN; k++)
+    tunerSnap[k] = audioBuf[(uint16_t)(i - 1 - k) & BUF_MASK];
+
+  uint32_t bestD = 0xFFFFFFFFUL, sumD = 0;
+  uint16_t bestTau = 0, count = 0;
+
+  for (uint16_t tau = TUNER_TAU_MIN; tau <= TUNER_TAU_MAX; tau++, count++) {
+    uint32_t d = amdf(tau);
+    sumD += d;
+    if (d < bestD) { bestD = d; bestTau = tau; }
+  }
+
+  // Reject if the dip isn't clearly below the mean (unvoiced / noisy), or if it
+  // landed on a search boundary (can't interpolate / likely out of range).
+  uint32_t mean = sumD / count;
+  if (bestD * 2 > mean || bestTau <= TUNER_TAU_MIN || bestTau >= TUNER_TAU_MAX) {
+    g_freqDeciHz = 0;
+    return;
+  }
+
+  // Parabolic interpolation around the minimum for a sub-sample period.
+  float d0 = (float)amdf(bestTau - 1);
+  float d1 = (float)bestD;
+  float d2 = (float)amdf(bestTau + 1);
+  float denom = d0 - 2.0f * d1 + d2;
+  float delta = (denom > 0.0f) ? 0.5f * (d0 - d2) / denom : 0.0f;
+  float tauR  = (float)bestTau + delta;
+
+  float f = FS_HZ / tauR;
+  g_freqDeciHz = (uint16_t)(f * 10.0f + 0.5f);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 //  Main loop — serial parser + VGA
 // ═══════════════════════════════════════════════════════════════════════════
 void loop() {
@@ -340,7 +426,15 @@ void loop() {
   uint32_t now = millis();
   static uint32_t lastVGA   = 0;
   static uint32_t lastTelem = 0;
+  static uint32_t lastTuner = 0;
   static int16_t  telemPeak = 0;
+
+  // ── Tuner pitch detection (every 150 ms, tuner mode only) ───────────────
+  if (P.effect == FX_TUNER) {
+    if (now - lastTuner >= 150) { lastTuner = now; detectPitch(); }
+  } else {
+    g_freqDeciHz = 0;
+  }
 
   // ── VGA loop (every 15 ms) ──────────────────────────────────────────────
   // One OCR1A step per tick: smooth gain rides with no pumping.
@@ -376,14 +470,16 @@ void loop() {
   // ── Telemetry (every 100 ms) ────────────────────────────────────────────
   if (now - lastTelem >= 100) {
     lastTelem = now;
-    uint8_t clip;
-    noInterrupts(); clip = g_clip; g_clip = 0; interrupts();
+    uint8_t  clip;
+    uint16_t freq;
+    noInterrupts(); clip = g_clip; g_clip = 0; freq = g_freqDeciHz; interrupts();
 
     Serial.print(F("T,")); Serial.print(P.effect);
     Serial.print(',');      Serial.print(telemPeak);
     Serial.print(',');      Serial.print(OCR1A);
     Serial.print(',');      Serial.print(clip);
-    Serial.print(',');      Serial.println(g_rxErr);
+    Serial.print(',');      Serial.print(g_rxErr);
+    Serial.print(',');      Serial.println(freq);
 
     telemPeak = 0;
   }

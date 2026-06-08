@@ -21,6 +21,7 @@ class Effect(IntEnum):
     DELAY = 2
     CHORUS = 3
     REVERB = 4
+    TUNER = 5
 
 
 # Accept either the name ("reverb") or the int (4) from the LLM / UI.
@@ -94,9 +95,9 @@ class AmpParams(BaseModel):
             if key in _EFFECT_BY_NAME:
                 return _EFFECT_BY_NAME[key]
             if key.isdigit():
-                return _clamp(int(key), 0, 4)
+                return _clamp(int(key), 0, 5)
         if isinstance(v, (int, float)):
-            return _clamp(v, 0, 4)
+            return _clamp(v, 0, 5)
         return v
 
     @model_validator(mode="before")
@@ -142,21 +143,36 @@ class AmpParams(BaseModel):
 
 @dataclass
 class Telemetry:
-    """One parsed 'T,effect,peak,vga,clip,rxErr' frame from the MCU."""
+    """One parsed 'T,effect,peak,vga,clip,rxErr[,freqDeciHz]' frame from the MCU.
+
+    `freq_dhz` is the detected fundamental in deci-Hz (Hz x 10), populated only in
+    tuner mode (0 otherwise). The field is optional so older firmware that emits
+    the 6-field frame still parses.
+    """
 
     effect: int = 0
     peak: int = 0
     vga: int = 0
     clip: int = 0
     rx_err: int = 0
+    freq_dhz: int = 0
+
+    @property
+    def freq_hz(self) -> float:
+        return self.freq_dhz / 10.0
 
     @classmethod
     def parse(cls, line: str) -> Optional["Telemetry"]:
         if not line.startswith("T,"):
             return None
+        parts = line.split(",")
+        if len(parts) not in (6, 7):
+            return None
         try:
-            _, effect, peak, vga, clip, rx = line.split(",")
-            return cls(int(effect), int(peak), int(vga), int(clip), int(rx))
+            _, effect, peak, vga, clip, rx = parts[:6]
+            freq = parts[6] if len(parts) == 7 else "0"
+            return cls(int(effect), int(peak), int(vga), int(clip), int(rx),
+                       int(freq))
         except ValueError:
             return None
 
@@ -167,6 +183,7 @@ class Telemetry:
             "vga": self.vga,
             "clip": self.clip,
             "rx_err": self.rx_err,
+            "freq_hz": self.freq_hz,
         }
 
 

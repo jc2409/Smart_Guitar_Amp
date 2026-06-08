@@ -37,6 +37,9 @@ The amp runs exactly ONE effect at a time. Effects and their parameters:
                 sweep amount; `rate` (1-20) the LFO speed.
 - reverb      : dense feedback network. `feedback` (0-255) sets the tail length —
                 KEEP IT UNDER 205 or it self-oscillates. `mix` (0-255) the wet level.
+- tuner       : guitar tuner. Clean passthrough while the amp detects the played
+                string's pitch and the UI shows it against standard tuning (EADGBE).
+                No effect parameters. Switch here when the user wants to tune up.
 
 `auto_vga` (default true) keeps the input gain managed automatically; only set a
 manual `gain` (0-255) if the user explicitly asks about input level.
@@ -66,8 +69,9 @@ def _tool_schema() -> dict:
             "properties": {
                 "effect": {
                     "type": "string",
-                    "enum": ["clean", "overdrive", "delay", "chorus", "reverb"],
-                    "description": "Which effect to activate.",
+                    "enum": ["clean", "overdrive", "delay", "chorus", "reverb",
+                             "tuner"],
+                    "description": "Which effect/mode to activate.",
                 },
                 "drive": {"type": "integer", "minimum": 1, "maximum": 511,
                           "description": "Overdrive gain."},

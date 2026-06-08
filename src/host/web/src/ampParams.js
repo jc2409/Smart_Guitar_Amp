@@ -15,9 +15,10 @@ export const RELEVANCE = {
   delay: ["delay_len", "feedback", "mix"],
   chorus: ["depth", "rate"],
   reverb: ["feedback", "mix"],
+  tuner: [],
 };
 
-export const EFFECTS = ["clean", "overdrive", "delay", "chorus", "reverb"];
+export const EFFECTS = ["clean", "overdrive", "delay", "chorus", "reverb", "tuner"];
 
 export const EFFECT_BLURB = {
   clean: "Transparent passthrough",
@@ -25,6 +26,7 @@ export const EFFECT_BLURB = {
   delay: "Echo with feedback",
   chorus: "Modulated shimmer",
   reverb: "Dense feedback wash",
+  tuner: "Tune to standard pitch",
 };
 
 export const DEFAULTS = {

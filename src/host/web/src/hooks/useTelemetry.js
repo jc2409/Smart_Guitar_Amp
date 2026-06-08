@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const EMPTY = {
   effect: 0,
@@ -6,6 +6,7 @@ const EMPTY = {
   vga: 0,
   clip: 0,
   rx_err: 0,
+  freq_hz: 0,
   connected: false,
   port: null,
   // derived
@@ -13,12 +14,9 @@ const EMPTY = {
   link: "connecting", // "connecting" | "device" | "preview" | "down"
 };
 
-// Subscribes to /api/telemetry (SSE). Returns the latest telemetry plus a
-// rolling history of peak values (for the level sparkline).
-export function useTelemetry(historyLen = 120) {
+// Subscribes to /api/telemetry (SSE). Returns the latest telemetry frame.
+export function useTelemetry() {
   const [tel, setTel] = useState(EMPTY);
-  const historyRef = useRef(new Array(historyLen).fill(0));
-  const [history, setHistory] = useState(historyRef.current);
 
   useEffect(() => {
     const es = new EventSource("/api/telemetry");
@@ -32,17 +30,12 @@ export function useTelemetry(historyLen = 120) {
       const deviceConnected = !!t.connected && t.port && t.port !== "mock";
       const link = deviceConnected ? "device" : t.port === "mock" ? "preview" : "down";
       setTel({ ...t, deviceConnected, link });
-
-      const h = historyRef.current.slice(1);
-      h.push(t.peak || 0);
-      historyRef.current = h;
-      setHistory(h);
     };
     es.onerror = () => {
       setTel((prev) => ({ ...prev, link: "connecting" }));
     };
     return () => es.close();
-  }, [historyLen]);
+  }, []);
 
-  return { tel, history };
+  return { tel };
 }

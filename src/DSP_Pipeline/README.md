@@ -1,8 +1,9 @@
 # SF4 Real-Time Guitar DSP Pipeline — Firmware
 
 Arduino Uno R3 (ATmega328P) firmware implementing a real-time, **selectable
-multi-effect** guitar DSP — **Clean / Overdrive / Delay / Chorus / Reverb** — with
-a serial command interface for live parameter control.
+multi-effect** guitar DSP — **Clean / Overdrive / Delay / Chorus / Reverb** — plus
+a **Tuner** mode that detects the played string's pitch, all with a serial command
+interface for live parameter control.
 
 Sketch: [`DSP_Pipeline.ino`](DSP_Pipeline.ino)
 
@@ -49,8 +50,26 @@ signed values centred on 0 (range −512..+511). **One effect is active at a tim
 | 2 | **Delay** | Single echo with feedback (~53 ms max) | `delayLen` 1..512, `feedback` 0..255, `mix` 0..255 |
 | 3 | **Chorus** | Triangle-LFO modulated short delay, 50/50 dry/wet | `depth` 1..48, `rate` 1..20 |
 | 4 | **Reverb** | Ten-tap feedback network | `feedback` 0..255 (keep < 205), `mix` 0..255 |
+| 5 | **Tuner** | Clean passthrough + fundamental-pitch detection (reported via telemetry) | — |
 
 **Delay/reverb timing**: `t = samples / 9615 Hz`. The 512-sample `int8` line holds ~53 ms.
+
+### Tuner
+
+Selecting **Tuner** (effect 5) passes the signal through clean while detecting the
+played string's fundamental frequency and reporting it in the `freq` telemetry
+field (deci-Hz; `0` = no pitch). The host UI shows the detected pitch against the
+six standard-tuning strings (E2 A2 D3 G3 B3 E4) with a flat↔sharp cents needle.
+
+- **Method**: **AMDF** (Average Magnitude Difference Function) over the audio ring
+  buffer, searching lags ~24..128 samples (≈75–400 Hz). The deepest dip is the
+  period; **parabolic interpolation** around it recovers sub-sample resolution —
+  essential for the high strings, where one whole-sample lag step is tens of cents
+  at 9615 Hz. A peak-amplitude gate suppresses readings on silence.
+- **Where it runs**: in `loop()` (every ~150 ms), **not** the ISR, and only while
+  effect 5 is active — so it costs nothing in the other modes. It works on a frozen
+  copy of the most recent samples, since the ISR keeps overwriting the live ring
+  during the (tens-of-ms) computation.
 
 ---
 
@@ -61,7 +80,7 @@ it (robust to `\n` / `\r\n` / no line ending).
 
 | Command | Example | Effect |
 |---------|---------|--------|
-| `e<0..4>` | `e1` | Select effect (0=clean 1=overdrive 2=delay 3=chorus 4=reverb) |
+| `e<0..5>` | `e1` | Select effect (0=clean 1=overdrive 2=delay 3=chorus 4=reverb 5=tuner) |
 | `c<1..511>` | `c180` | Overdrive drive (thresh) |
 | `d<1..512>` | `d400` | Delay length in samples |
 | `f<0..255>` | `f190` | Delay/reverb feedback / decay |
@@ -85,7 +104,7 @@ atomically with one `P` frame and reads `T` telemetry back:
 
 ```
 PC -> MCU : P,<effect>,<drive>,<delayLen>,<feedback>,<mix>,<depth>,<rate>,<autoVGA>,<gain>\n
-MCU -> PC : T,<effect>,<peak>,<vga>,<clip>,<rxErr>\n      (emitted ~10 Hz)
+MCU -> PC : T,<effect>,<peak>,<vga>,<clip>,<rxErr>,<freq>\n      (emitted ~10 Hz)
 ```
 
 - **`P` frame** — sets the entire parameter bank in one `cli/sei` section (no
@@ -94,7 +113,10 @@ MCU -> PC : T,<effect>,<peak>,<vga>,<clip>,<rxErr>\n      (emitted ~10 Hz)
   gain and turns auto-VGA off. Malformed frames are rejected and counted in `rxErr`.
 - **`T` telemetry** — `effect` (active effect ID), `peak` (max |output| since last
   report — a VU meter), `vga` (current `OCR1A`), `clip` (clipped since last report),
-  `rxErr` (malformed-frame count).
+  `rxErr` (malformed-frame count), `freq` (detected fundamental in **deci-Hz** —
+  Hz×10 — in tuner mode, else `0`).
+  > The `freq` field is appended; the host parser accepts both the 6-field
+  > (pre-tuner) and 7-field frames, so older firmware still parses.
 
 ### Host software
 

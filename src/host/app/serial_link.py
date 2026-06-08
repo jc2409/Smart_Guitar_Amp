@@ -125,6 +125,9 @@ class MockLink(BaseLink):
     def apply(self, params: AmpParams) -> None:
         self._params = params
 
+    # Standard-tuning string fundamentals (Hz) — used to fake tuner readings.
+    _STRINGS = (82.41, 110.00, 146.83, 196.00, 246.94, 329.63)
+
     def get_telemetry(self) -> Telemetry:
         # Synthesize a plausible peak that wobbles, scaled by mix/drive so the
         # meter visibly reacts to changes.
@@ -135,8 +138,18 @@ class MockLink(BaseLink):
         peak = max(0, int(base))
         vga = self._params.gain if self._params.gain is not None else 15
         clip = 1 if peak > 360 else 0
+
+        # Tuner mode: slowly cycle through the strings, each drifting a few cents
+        # around its target so the UI needle visibly sweeps flat<->sharp.
+        freq_dhz = 0
+        if self._params.effect == 5:
+            target = self._STRINGS[int(t / 3.0) % len(self._STRINGS)]
+            cents = 18.0 * math.sin(t * 1.3)          # ±18 cents wander
+            freq = target * (2.0 ** (cents / 1200.0))
+            freq_dhz = int(round(freq * 10))
+
         return Telemetry(effect=int(self._params.effect), peak=peak,
-                         vga=int(vga), clip=clip, rx_err=0)
+                         vga=int(vga), clip=clip, rx_err=0, freq_dhz=freq_dhz)
 
 
 def create_link(port: str | None = None) -> BaseLink:

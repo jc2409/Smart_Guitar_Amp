@@ -16,7 +16,7 @@ export default function App() {
   const [accent, setAccent] = useState(
     () => localStorage.getItem("sf4-accent") || "amber"
   );
-  const { tel, history } = useTelemetry();
+  const { tel } = useTelemetry();
 
   const commitTimer = useRef(null);
   const hlTimer = useRef(null);
@@ -105,7 +105,6 @@ export default function App() {
             reset={reset}
             highlight={highlight}
             tel={tel}
-            history={history}
           />
           <Chat onSend={sendChat} effect={params.effect} />
         </main>
