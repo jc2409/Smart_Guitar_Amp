@@ -4,10 +4,11 @@ import Knob from "./Knob";
 import EffectSelector from "./EffectSelector";
 import DisplayScreen from "./DisplayScreen";
 import TunerDisplay from "./TunerDisplay";
+import TelemetryStrip from "./TelemetryStrip";
 
 export default function ControlPanel({ params, patch, reset, highlight, tel }) {
   const relevant = new Set(RELEVANCE[params.effect] || []);
-  const gainVal = params.gain ?? 15;
+  const gainVal = params.gain ?? 20;
   const isTuner = params.effect === "tuner";
 
   return (
@@ -26,6 +27,8 @@ export default function ControlPanel({ params, patch, reset, highlight, tel }) {
         onChange={(fx) => patch({ effect: fx }, true)}
         highlight={highlight.has("effect")}
       />
+
+      <TelemetryStrip tel={tel} />
 
       {isTuner ? (
         <TunerDisplay tel={tel} />
@@ -74,7 +77,7 @@ export default function ControlPanel({ params, patch, reset, highlight, tel }) {
                 dim={params.auto_vga}
                 highlight={highlight.has("gain")}
                 onChange={(v) => !params.auto_vga && patch({ gain: v })}
-                onReset={() => !params.auto_vga && patch({ gain: 15 }, true)}
+                onReset={() => !params.auto_vga && patch({ gain: 20 }, true)}
               />
             </div>
           </div>

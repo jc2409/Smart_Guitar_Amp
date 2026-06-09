@@ -35,7 +35,7 @@ export default function Chat({ onSend }) {
       id: uid++,
       role: "assistant",
       content:
-        "Tell me a tone, a song, or an artist — e.g. “warm bluesy overdrive” or “Gilmour on Comfortably Numb”.",
+        "What effect do you want?",
     },
   ]);
   const [text, setText] = useState("");

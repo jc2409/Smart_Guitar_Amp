@@ -136,7 +136,7 @@ class MockLink(BaseLink):
         if self._params.effect == 1:  # overdrive louder
             base = min(380, base + self._params.drive // 4)
         peak = max(0, int(base))
-        vga = self._params.gain if self._params.gain is not None else 15
+        vga = self._params.gain if self._params.gain is not None else 20
         clip = 1 if peak > 360 else 0
 
         # Tuner mode: slowly cycle through the strings, each drifting a few cents
