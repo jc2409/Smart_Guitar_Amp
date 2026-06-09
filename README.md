@@ -1,6 +1,6 @@
 # SF4 Smart Guitar Amp
 
-<iframe width="560" height="315" src="https://www.youtube.com/embed/zBXpkTaCWV4?si=3vRegjOwgvPwAEo3" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
+![Guitar Amp Demo Video]("https://www.youtube.com/watch?v=zBXpkTaCWV4")
 
 SF4 is a hybrid guitar-effect amplifier built around a real analog input/output
 path, an Arduino Uno DSP firmware, and a browser-based host app. The system lets
