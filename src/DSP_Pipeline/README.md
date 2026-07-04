@@ -1,4 +1,4 @@
-# SF4 Real-Time Guitar DSP Pipeline — Firmware
+# Real-Time Guitar DSP Pipeline — Firmware
 
 Arduino Uno R3 (ATmega328P) firmware implementing a real-time, **selectable
 multi-effect** guitar DSP — **Clean / Overdrive / Delay / Chorus / Reverb** — plus

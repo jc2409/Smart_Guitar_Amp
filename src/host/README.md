@@ -1,6 +1,6 @@
-# SF4 Host - Backend, Voice UI, and Tone Engine
+# Host - Backend, Voice UI, and Tone Engine
 
-This directory contains the desktop/web host for the SF4 smart guitar amp. One
+This directory contains the desktop/web host for the Smart Guitar Amp. One
 FastAPI process owns the serial link to the Arduino, keeps the authoritative amp
 state, runs the OpenAI-first tone engine, serves the React dashboard, and exposes
 JSON/SSE APIs for manual control, chat, voice transcription, and telemetry.
@@ -11,7 +11,7 @@ JSON/SSE APIs for manual control, chat, voice transcription, and telemetry.
 app/
   main.py         FastAPI app: /api/* endpoints, static UI serving, app lifetime
   models.py       AmpParams, telemetry, chat schemas, firmware value ranges
-  serial_link.py  SF4Link hardware bridge, MockLink fallback, port autodetect
+  serial_link.py  hardware serial bridge, MockLink fallback, port autodetect
   tone_engine.py  OpenAI/Anthropic tone engine with set_amp_params tool use
   openai_client.py OpenAI client setup for API key, proxy URL, and CA bundle
   devtools.py     Makefile helpers for serial-port detection and config checks

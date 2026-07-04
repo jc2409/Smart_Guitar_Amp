@@ -44,3 +44,6 @@ _autosave-*
 .env
 __pycache__/
 *.pyc
+
+# Docs folder (handouts, reports, presentation)
+docs/
